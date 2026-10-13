@@ -1,11 +1,70 @@
-# Learning Management System – Event-Driven Spring Boot Microservices
+<div align="center">
 
-Mini project for **Scalable Microservices** (topic 15: Learning Management System – User, Course, Enrollment,
-Assessment, Progress, Certificate; course-completion events).
+# 🎓 LearnHub – Event-Driven Learning Management System
 
-**Stack:** Spring Boot 3.3 · Spring Cloud Gateway · Eureka · Spring Data JPA · MySQL · RabbitMQ · React (Vite) ·
-patterns: **Database-per-service, Saga, CQRS, Event Sourcing, Circuit Breaker, idempotent consumers, DLQ**.
-Everything runs **locally without Docker**.
+**Spring Boot microservices · RabbitMQ · Saga · CQRS · Event Sourcing · React**
+
+![Java](https://img.shields.io/badge/Java-17-orange?logo=openjdk)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3-6DB33F?logo=springboot&logoColor=white)
+![Spring Cloud](https://img.shields.io/badge/Spring%20Cloud-Gateway%20%7C%20Eureka-6DB33F?logo=spring&logoColor=white)
+![RabbitMQ](https://img.shields.io/badge/RabbitMQ-events-FF6600?logo=rabbitmq&logoColor=white)
+![MySQL](https://img.shields.io/badge/MySQL-8-4479A1?logo=mysql&logoColor=white)
+![React](https://img.shields.io/badge/React-18%20%2B%20Vite-61DAFB?logo=react&logoColor=black)
+![Tests](https://img.shields.io/badge/unit%20tests-111%20passing-brightgreen)
+
+Mini project for **Scalable Microservices** – topic 15: *Learning Management System*
+(User, Course, Enrollment, Assessment, Progress, Certificate; course-completion events).
+
+<img src="docs/screenshots/08-course-completed.png" alt="Course completed – progress 100%, assessment passed, certificate issued" width="900">
+
+</div>
+
+Nine Spring Boot services sit behind an API gateway and talk to each other through RabbitMQ events.
+A student enrolls, completes modules and passes an assessment; **progress-service** (CQRS + Event Sourcing)
+decides *progress = 100 % AND passed = true* and publishes `CourseCompleted`, which automatically produces a
+**PDF certificate with a QR code**, completes the enrollment and notifies the student. Failures are handled by a
+**choreographed saga** with compensating transactions. Everything runs **locally without Docker**.
+
+**Patterns:** Database-per-service · API Gateway · Service discovery · Saga · CQRS · Event Sourcing ·
+Circuit breaker · Idempotent consumers · Dead-letter queues · JWT stateless auth
+
+---
+
+## 📸 Visual tour
+
+### Student journey
+
+| | |
+|:---:|:---:|
+| <img src="docs/screenshots/01-home.png" width="440"><br>**Home** – the event flow explained, demo accounts | <img src="docs/screenshots/02-login.png" width="440"><br>**Login** – JWT issued by user-service, checked at the gateway |
+| <img src="docs/screenshots/03-course-catalog.png" width="440"><br>**1. Browse & enroll** – `POST /api/enrollments` publishes `StudentEnrolled` | <img src="docs/screenshots/04-my-learning-enrolled.png" width="440"><br>**2. My Learning** – progress row created *asynchronously* by progress-service |
+| <img src="docs/screenshots/05-course-progress-and-event-timeline.png" width="440"><br>**3. Learn** – each *Mark module complete* publishes `ModuleCompleted`; the timeline shows the event store | <img src="docs/screenshots/06-assessment.png" width="440"><br>**4. Assessment** – auto-scored, publishes `AssessmentCompleted` |
+| <img src="docs/screenshots/07-assessment-result.png" width="440"><br>**5. Result** – 80 % ≥ pass mark 60 % | <img src="docs/screenshots/08-course-completed.png" width="440"><br>**6. Decision** – 100 % **AND** passed → `CourseCompleted` |
+| <img src="docs/screenshots/11-certificates.png" width="440"><br>**7. Certificate issued** by certificate-service from the event | <img src="docs/screenshots/12-certificate-pdf.png" width="440"><br>**8. Generated PDF** (OpenPDF) with a QR verification code |
+| <img src="docs/screenshots/14-public-certificate-verification.png" width="440"><br>**9. Public verification** – no login, `GET /api/certificates/verify/{code}` | <img src="docs/screenshots/13-notifications.png" width="440"><br>**10. Notifications** – from `StudentEnrolled`, `CourseCompleted`, `CertificateGenerated` |
+
+### Event Sourcing & CQRS
+
+| | |
+|:---:|:---:|
+| <img src="docs/screenshots/09-event-sourced-timeline.png" width="440"><br>**Event timeline** – the immutable `event_store` history (v1…v7) of one student's course | <img src="docs/screenshots/18-admin-rebuild-read-model.png" width="440"><br>**Rebuild read model** – admin wipes the query table and replays every event |
+
+### Instructor & admin
+
+| | |
+|:---:|:---:|
+| <img src="docs/screenshots/15-instructor-courses.png" width="440"><br>**Instructor courses** | <img src="docs/screenshots/16-instructor-manage-modules.png" width="440"><br>**Manage modules, lessons & assessment** |
+| <img src="docs/screenshots/17-instructor-student-progress.png" width="440"><br>**Student progress** (CQRS read model per course) | <img src="docs/screenshots/10-my-learning-completed.png" width="440"><br>**Completed courses** on the student dashboard |
+
+### Under the hood
+
+| | |
+|:---:|:---:|
+| <img src="docs/screenshots/19-eureka-dashboard.png" width="440"><br>**Eureka** – all services registered | <img src="docs/screenshots/21-rabbitmq-exchange-bindings.png" width="440"><br>**RabbitMQ** – topic exchange `lms.events` and its routing-key bindings |
+| <img src="docs/screenshots/20-rabbitmq-queues.png" width="440"><br>**Queues + dead-letter queues** (`*.dlq`), all drained | <img src="docs/screenshots/23-gateway-circuit-breakers.png" width="440"><br>**Circuit breaker OPEN** after notification-service was stopped → instant 503 fallback |
+| <img src="docs/screenshots/22-swagger-progress-service.png" width="440"><br>**Swagger / OpenAPI** for every service | <img src="docs/screenshots/24-e2e-demo-terminal.png" width="440"><br>**`./scripts/e2e-demo.sh`** – the whole workflow incl. saga compensation |
+
+---
 
 ## 1. Architecture
 
@@ -240,6 +299,7 @@ lms-project final/
 ├── notification-service/   mail/
 ├── frontend/               React + Vite
 ├── docs/CONTRACTS.md       event & port contracts
+├── docs/screenshots/       images used in this README
 ├── scripts/                start-all / stop-all (.sh, .ps1), e2e-demo.sh
 └── sql/init.sql            optional DB creation
 ```
